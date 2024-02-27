@@ -1,5 +1,5 @@
 # hmrc
-### a simple implementation of hot module reloading for c and c++ 🔥
+### a simple implementation of hot module reloading for c and c++ in nodejs 🔥
 
 ## Installation
 1. Download the exe file
