@@ -11,10 +11,8 @@ const options = program.opts();
 const path = options.path ? options.path : "";
 const name = path.split("/")[path.split("/").length-1];
 
-
-console.log(`Running ${name}...`);
-
 function runFile(path){
+    console.log(`Running ${name}...\n`);
     console.clear()
     const compiler = path[path.length-1] === "c" ? "gcc" : "g++";
     exec(`${compiler} ${path} -o a`, (error)=>{
