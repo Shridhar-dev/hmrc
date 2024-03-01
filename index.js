@@ -4,11 +4,14 @@ const nodePath = require('path')
 const { program } = require('commander');
 
 program
-  .option('-p, --path <string>');
+  .name('hmrc')
+  .version('1.0.0', '-v, --version', 'outputs the current version')
+  .option('-p, --path <string>', 'path of the file to be run');
 
 program.parse();
 
 const options = program.opts();
+
 const path = options.path ? options.path : process.cwd();
 const multiple = options.path ? false : true;
 const name = path.split("/")[path.split("/").length-1];
