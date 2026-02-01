@@ -1,69 +1,81 @@
-const { exec } = require('child_process');
-const fs = require('fs')
-const nodePath = require('path')
+const { exec, spawn } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 const { program } = require('commander');
 
 program
   .name('hmrc')
-  .version('1.0.0', '-v, --version', 'outputs the current version')
+  .version('1.1.0', '-v, --version', 'outputs the current version')
   .option('-p, --path <string>', 'path of the file to be run');
 
 program.parse();
-
 const options = program.opts();
 
-const path = options.path ? options.path : process.cwd();
-const multiple = options.path ? false : true;
-const name = path.split("/")[path.split("/").length-1];
+const targetPath = options.path || process.cwd();
+const multiple = !options.path;
+
 let files = [];
+let runningProcess = null;
 
-function runFile(path, name){
-    console.clear()
-    console.log(`Running ${name}...\n`);
-    const compiler = path[path.length-1] === "c" ? "gcc" : "g++";
-    exec(`${compiler} ${path} -o a`, (error)=>{
-        if(error){
-            console.error(error)
-        }
-        else{
-            const terminal = exec("a.exe");
-            terminal.stdout.on('data', async(data) => {
-                console.log(data)
-            });
-        }
+function runFile(filePath, fileName) {
+  console.clear();
+  console.log(`Running ${fileName}...\n`);
+
+  if (runningProcess) {
+    runningProcess.kill();
+    runningProcess = null;
+  }
+
+  const compiler = filePath.endsWith('.c') ? 'gcc' : 'g++';
+
+  exec(`${compiler} "${filePath}" -o a`, (error) => {
+    if (error) {
+      console.error(error.message);
+      return;
+    }
+
+    runningProcess = spawn(
+      process.platform === 'win32' ? 'a.exe' : './a',
+      [],
+      {
+        stdio: 'inherit'
+      }
+    );
+
+    runningProcess.on('exit', () => {
+      runningProcess = null;
     });
+  });
 }
 
-const watchFiles = () =>{
-    files.forEach((file,i)=>{
-        const nameSplit = file.split(".");
-        const extension = nameSplit[nameSplit.length-1]; 
-        if(extension === "c" || extension === "cpp"){
-            fs.watchFile(nodePath.join(path, file),{ interval: 0 },()=>{
-                runFile(nodePath.join(path, file), file);
-            })
-        }
-    })
+function watchFiles() {
+  files.forEach((file) => {
+    if (file.endsWith('.c') || file.endsWith('.cpp')) {
+      const fullPath = path.join(targetPath, file);
+      fs.watchFile(fullPath, { interval: 100 }, () => {
+        runFile(fullPath, file);
+      });
+    }
+  });
 }
 
-if(multiple){
-    files = fs.readdirSync(path);
-    watchFiles();
-    fs.watch(path,{ interval: 0 },(event, file)=>{
-        const nameSplit = file.split(".");
-        const extension = nameSplit[nameSplit.length-1]; 
-        if(event === "rename" && (extension === "c" || extension === "cpp")){
-            files.forEach((file,i)=>{
-                fs.unwatchFile(nodePath.join(path, file))
-            })
-            files = fs.readdirSync(path);
-            watchFiles()
-        }
-    })  
-}
-else{
-    runFile(path, name);
-    fs.watchFile(path,{ interval: 0 },()=>{
-        runFile(path, name);
-    })
+if (multiple) {
+  files = fs.readdirSync(targetPath);
+  watchFiles();
+
+  fs.watch(targetPath, (event, file) => {
+    if (!file) return;
+    if (file.endsWith('.c') || file.endsWith('.cpp')) {
+      files.forEach(f => fs.unwatchFile(path.join(targetPath, f)));
+      files = fs.readdirSync(targetPath);
+      watchFiles();
+    }
+  });
+} else {
+  const name = path.basename(targetPath);
+  runFile(targetPath, name);
+
+  fs.watchFile(targetPath, { interval: 100 }, () => {
+    runFile(targetPath, name);
+  });
 }
